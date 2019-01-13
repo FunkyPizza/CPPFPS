@@ -40,6 +40,8 @@ ASTrackerBot::ASTrackerBot()
 	ExplosionDamage = 40;
 	ExplosionRadius = 200;
 
+	MaxPowerLevel = 4;
+
 	SelfDamageInterval = 0.25f;
 
 
@@ -54,6 +56,9 @@ void ASTrackerBot::BeginPlay()
 	{
 		//Find initial move to
 		FVector NextPathPoint = GetNextPathPoint();
+
+		FTimerHandle TimerHandle_CheckForNearbyEnemy;
+		GetWorldTimerManager().SetTimer(TimerHandle_CheckForNearbyEnemy, this, &ASTrackerBot::CheckForNearbyEnemy, 1.0f, true);
 	}
 }
 
@@ -92,7 +97,7 @@ FVector ASTrackerBot::GetNextPathPoint()
 	UNavigationPath* NavPath = UNavigationSystem::FindPathToActorSynchronously(this, GetActorLocation(), PlayerPawn);
 
 	//Get Path point 1 (0 being Actor Location)
-	if (NavPath->PathPoints.Num() > 1)
+	if (NavPath && NavPath->PathPoints.Num() > 1)
 	{
 		return NavPath->PathPoints[1];
 	}
@@ -127,7 +132,8 @@ void ASTrackerBot::SelfDestruct()
 			//Apply damage
 			TArray<AActor*> IgnoredActors;
 			IgnoredActors.Add(this);
-			UGameplayStatics::ApplyRadialDamage(this, ExplosionDamage, GetActorLocation(), ExplosionRadius, nullptr, IgnoredActors, this, GetInstigatorController(), true);
+			float ActualDamage = ExplosionDamage + (ExplosionDamage * PowerLevel);
+			UGameplayStatics::ApplyRadialDamage(this, ActualDamage, GetActorLocation(), ExplosionRadius, nullptr, IgnoredActors, this, GetInstigatorController(), true);
 
 			DrawDebugSphere(GetWorld(), GetActorLocation(), ExplosionRadius, 12, FColor::Red, true, 2.0f, 0, 1.0f);
 
@@ -144,6 +150,50 @@ void ASTrackerBot::DamageSelf()
 	UGameplayStatics::ApplyDamage(this, 20, GetInstigatorController(), this, nullptr);
 }
 
+
+void ASTrackerBot::CheckForNearbyEnemy()
+{
+	//Set sphere parameters for collision
+	const float Radius = 600;
+	FCollisionShape CollShape;
+	CollShape.SetSphere(Radius);
+
+	FCollisionObjectQueryParams QueryParams;
+	QueryParams.AddObjectTypesToQuery(ECC_PhysicsBody);
+	QueryParams.AddObjectTypesToQuery(ECC_Pawn);
+
+	//Set Overlaps array to overlapped actors
+	TArray<FOverlapResult> Overlaps;
+	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, QueryParams, CollShape);
+
+	DrawDebugSphere(GetWorld(), GetActorLocation(), Radius, 12, FColor::White, false, 1.0f);
+
+	//Get number of bot in Overlaps array
+	int32 NrOfBots = 0;
+
+	for (FOverlapResult Result : Overlaps)
+	{
+		ASTrackerBot* Bot = Cast<ASTrackerBot>(Result.GetActor());
+
+		if (Bot && Bot != this)
+		{
+			NrOfBots++;
+		}
+	}
+
+	PowerLevel = FMath::Clamp(NrOfBots, 0, MaxPowerLevel);
+
+	if (MatInst == nullptr)
+	{
+		MatInst = MeshComp->CreateAndSetMaterialInstanceDynamicFromMaterial(0, MeshComp->GetMaterial(0));
+	}
+	if (MatInst)
+	{
+		float Alpha = PowerLevel / (float)MaxPowerLevel;
+
+		MatInst->SetScalarParameterValue("PowerLevelAlpha", Alpha);
+	}
+}
 
 void ASTrackerBot::Tick(float DeltaTime)
 {
@@ -177,6 +227,8 @@ void ASTrackerBot::Tick(float DeltaTime)
 
 void ASTrackerBot::NotifyActorBeginOverlap(AActor* OtherActor)
 {
+	Super::NotifyActorBeginOverlap(OtherActor);
+
 	if (!bStartSelfDestruction && !bExploded)
 	{
 		ASCharacter* PlayerPawn = Cast<ASCharacter>(OtherActor);

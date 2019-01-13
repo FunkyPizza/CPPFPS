@@ -34,6 +34,7 @@ protected:
 	FVector GetNextPathPoint();
 	void SelfDestruct();
 	void DamageSelf();
+	void CheckForNearbyEnemy();
 
 	UFUNCTION()
 		void HandleTakeDamage(USHealthComponent* OwningHealthComp, float Health, float HealthDelta, const class UDamageType* DamageType,
@@ -59,18 +60,24 @@ protected:
 		USoundCue* SelfDestructSound;
 	UPROPERTY(EditDefaultsOnly, Category = "Tracker Bot")
 		USoundCue* ExplosionSound;
-		//Other Variables
+	UPROPERTY(EditDefaultsOnly, Category = "Tracker Bot")
+		int MaxPowerLevel; //Indicates how many AI can be detected at once
+	
+	//Other Variables
+	int PowerLevel; //Indicates how many other AI are near this AI, used to multiply damage
 
-		//Dynamic Material to pulse on damage
-		UMaterialInstanceDynamic* MatInst;
+	bool bExploded;
+	bool bStartSelfDestruction;
+
+	//Dynamic Material to pulse on damage
+	UMaterialInstanceDynamic* MatInst;
 
 	//Next point in navigation path
 	FVector NextPathPoint;
 
 	FTimerHandle TimerHandle_SelfDamage;
+	FTimerHandle TimerHandle_CheckForNearbyEnemy;
 
-	bool bExploded;
-	bool bStartSelfDestruction;
 
 
 public:
