@@ -34,6 +34,7 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_Health, BlueprintReadOnly, Category = "HealthComponents")
 	float Health;
 	
+	bool bIsDead;
 
 public:	
 
